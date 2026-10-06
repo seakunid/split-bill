@@ -46,20 +46,32 @@ function quantity(itemId: string) {
 
 async function copyLink() {
   const url = shareUrl.value || window.location.href
+  // Show the confirmation immediately. clipboard.writeText can hang when the
+  // browser is waiting on a permission prompt, which would otherwise hide it.
+  copied.value = true
+  window.setTimeout(() => {
+    copied.value = false
+  }, 2500)
   try {
-    await navigator.clipboard.writeText(url)
+    const write = navigator.clipboard?.writeText(url)
+    if (!write) throw new Error('Clipboard unavailable')
+    await Promise.race([
+      write,
+      new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error('Clipboard timed out')), 400)
+      }),
+    ])
   } catch {
     const input = document.createElement('textarea')
     input.value = url
+    input.setAttribute('readonly', '')
+    input.style.position = 'fixed'
+    input.style.left = '-9999px'
     document.body.appendChild(input)
     input.select()
     document.execCommand('copy')
     input.remove()
   }
-  copied.value = true
-  window.setTimeout(() => {
-    copied.value = false
-  }, 2000)
 }
 
 async function nativeShare() {
