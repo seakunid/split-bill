@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: splitbill
+          POSTGRES_PASSWORD: splitbill
+          POSTGRES_DB: splitbill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U splitbill -d splitbill"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://splitbill:splitbill@localhost:5432/splitbill
+      CORS_ORIGIN: http://localhost:3000
+      OPENAI_MODEL: gpt-4o
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Migrate database
+        run: |
+          if [ -f apps/api/prisma/schema.prisma ]; then
+            pnpm --filter @split-bill/api exec prisma migrate deploy
+          fi
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm build
