@@ -27,7 +27,7 @@ import {
 
 `POST /bills/parse` reads a multipart image in the field `image` (`PARSE_IMAGE_FIELD_NAME`). Saving a bill uses `billWriteSchema`. Responses use `billResponseSchema`, including a per-payer `breakdown`.
 
-`ApiError` may include an optional `code`. Parse failures use `vision_unavailable` when parsing cannot run right now (no key, rejected credentials, quota, the provider's own rate limit, a timeout, a network error, or a provider 5xx) and `vision_unreadable` when this photo could not be read. The `error` string stays generic. Provider failures are HTTP 502, so they are separate from the per-IP HTTP 429, which has no `code`. A draft that fails normalization is HTTP 422 with `vision_unreadable`. Older clients can ignore `code`.
+`ApiError` may include an optional `code`. Parse failures use `vision_unavailable` when parsing cannot run right now: no key, rejected credentials, quota, the provider's own rate limit, a timeout, a network error, a provider 5xx, an unknown or inaccessible model (`model_not_found`), or an unsupported request parameter such as `response_format`. `vision_unreadable` is only when the image itself is the problem: the provider rejects the image, the model returns empty or invalid JSON, or the draft fails normalization (HTTP 422). The `error` string stays generic. Provider failures are HTTP 502, so they are separate from the per-IP HTTP 429, which has no `code`. Older clients can ignore `code`.
 
 ## Running locally
 

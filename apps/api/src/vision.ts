@@ -194,7 +194,7 @@ async function providerHttpError(response: Response, secrets: string[]): Promise
   const parsed = parseProviderError(raw);
   const detail = redact(parsed.message ?? (raw.trim().length > 0 ? raw : `HTTP ${response.status}`), secrets);
   return new VisionProviderError({
-    code: clientCodeForProviderFailure(response.status, parsed.type, parsed.code),
+    code: clientCodeForProviderFailure(parsed.code, parsed.message ?? ""),
     providerStatus: response.status,
     providerType: parsed.type,
     providerCode: parsed.code,
@@ -202,19 +202,37 @@ async function providerHttpError(response: Response, secrets: string[]): Promise
   });
 }
 
+/**
+ * Account and request-config failures are `vision_unavailable`.
+ * `vision_unreadable` is only when the provider rejected the image itself.
+ */
 function clientCodeForProviderFailure(
-  status: number,
-  providerType: string | null,
   providerCode: string | null,
+  message: string,
 ): "vision_unavailable" | "vision_unreadable" {
-  if (status === 401 || status === 402 || status === 403 || status === 408 || status === 429 || status >= 500) {
-    return "vision_unavailable";
+  return isImageContentRejection(providerCode, message) ? "vision_unreadable" : "vision_unavailable";
+}
+
+function isImageContentRejection(providerCode: string | null, message: string): boolean {
+  const code = (providerCode ?? "").toLowerCase();
+  if (/^(invalid_image|invalid_image_url|image_parse_error|content_policy_violation|content_filter)$/.test(code)) {
+    return true;
   }
-  const token = `${providerType ?? ""} ${providerCode ?? ""}`.toLowerCase();
-  if (/quota|rate_limit|billing|invalid_api_key|authentication|permission|access/.test(token)) {
-    return "vision_unavailable";
+  const text = message.toLowerCase();
+  if (
+    /model_not_found|does not exist|invalid model|response_format|invalid parameter|unsupported parameter|not supported with this model|invalid_api_key|insufficient_quota/.test(
+      text,
+    )
+  ) {
+    return false;
   }
-  return "vision_unreadable";
+  return (
+    /\binvalid image\b/.test(text) ||
+    /unsupported image/.test(text) ||
+    /not a valid image/.test(text) ||
+    /could not (process|parse|read) (the )?image/.test(text) ||
+    /image data/.test(text)
+  );
 }
 
 function parseProviderError(raw: string): { type: string | null; code: string | null; message: string | null } {

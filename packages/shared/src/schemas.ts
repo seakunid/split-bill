@@ -149,7 +149,7 @@ export const billIssueSchema = z
 
 /**
  * Why a parse failed, without provider text or secrets.
- * `vision_unavailable` means parsing cannot run right now.
+ * `vision_unavailable` means parsing cannot run right now (config, account, or provider).
  * `vision_unreadable` means this photo could not be turned into a bill.
  * Omitted on every other error, including the per-IP 429.
  */

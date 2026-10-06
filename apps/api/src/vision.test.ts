@@ -182,6 +182,54 @@ describe("createOpenAIVision", () => {
     expect(refused.message).not.toContain(leaked);
   });
 
+  it("treats config and account errors as unavailable, and an image rejection as unreadable", async () => {
+    const cases: Array<{ status: number; body: unknown; code: "vision_unavailable" | "vision_unreadable" }> = [
+      {
+        status: 404,
+        body: {
+          error: {
+            message: "The model `gpt-4o` does not exist or you do not have access to it.",
+            type: "invalid_request_error",
+            code: "model_not_found",
+          },
+        },
+        code: "vision_unavailable",
+      },
+      {
+        status: 403,
+        body: { error: { message: "You do not have access to this model.", type: "invalid_request_error", code: null } },
+        code: "vision_unavailable",
+      },
+      {
+        status: 400,
+        body: {
+          error: {
+            message: "Invalid parameter: 'response_format' of type 'json_schema' is not supported with this model.",
+            type: "invalid_request_error",
+            param: "response_format",
+            code: null,
+          },
+        },
+        code: "vision_unavailable",
+      },
+      {
+        status: 400,
+        body: { error: { message: "Invalid image.", type: "invalid_request_error", code: "invalid_image" } },
+        code: "vision_unreadable",
+      },
+    ];
+
+    for (const entry of cases) {
+      const vision = createOpenAIVision({
+        apiKey: "sk-test-secret-key-value",
+        model: "gpt-4o",
+        baseUrl: "https://example.test/v1",
+        fetchImpl: async () => new Response(JSON.stringify(entry.body), { status: entry.status }),
+      });
+      await expect(vision.parse(image)).rejects.toMatchObject({ code: entry.code, providerStatus: entry.status });
+    }
+  });
+
   it("marks an empty or invalid model payload as unreadable", async () => {
     const empty = createOpenAIVision({
       apiKey: "sk-test-secret-key-value",
