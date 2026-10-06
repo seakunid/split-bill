@@ -49,7 +49,7 @@ import {
 
 `pnpm db:migrate` creates a new migration during development. `pnpm typecheck`, `pnpm test`, and `pnpm build` run across the workspace.
 
-The API reads env vars from the repo-root `.env` (and from `apps/api/.env` if that file exists). Every variable is listed in `.env.example`.
+The API reads `apps/api/.env` first, then fills any missing variables from the repo-root `.env`. Every variable is listed in `.env.example`. `pnpm install` builds `@split-bill/shared`, which is what the API and the web app import.
 
 Photo parsing calls OpenAI (`gpt-4o` by default, override with `OPENAI_MODEL`). The rest of the API runs without a key; `POST /bills/parse` returns 503 until `OPENAI_API_KEY` is set. Tests mock that call.
 

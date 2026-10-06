@@ -12,8 +12,8 @@ export type Env = {
 
 /** `apps/api/.env` wins. The repo-root `.env` fills anything still unset. */
 export function loadDotenv(): void {
-  dotenv.config({ path: resolve(process.cwd(), ".env") });
-  dotenv.config({ path: resolve(process.cwd(), "../../.env") });
+  dotenv.config({ path: resolve(process.cwd(), ".env"), quiet: true });
+  dotenv.config({ path: resolve(process.cwd(), "../../.env"), quiet: true });
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
