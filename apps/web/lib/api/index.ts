@@ -12,13 +12,17 @@ export function createBillApi(options: { baseUrl: string; useMock: boolean }): B
   return createHttpApi(options.baseUrl)
 }
 
-/** Nuxt env overrides arrive as strings. Default is the mock, so the app works before apps/api exists. */
+/**
+ * Nuxt env overrides arrive as strings. Anything other than an explicit
+ * true/`1` is the real API, including a missing value, so production does
+ * not fall back to localStorage.
+ */
 export function resolveUseMockApi(value: unknown): boolean {
   if (typeof value === 'boolean') return value
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase()
     if (normalized === 'true' || normalized === '1') return true
-    if (normalized === 'false' || normalized === '0') return false
+    if (normalized === 'false' || normalized === '0' || normalized === '') return false
   }
-  return true
+  return false
 }

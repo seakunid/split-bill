@@ -11,7 +11,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBaseUrl: 'http://localhost:3001',
-      useMockApi: true,
+      // False so a deploy that omits NUXT_PUBLIC_USE_MOCK_API calls the real API.
+      // `pnpm dev` opts into the mock when the variable is unset. See scripts/dev.mjs.
+      useMockApi: false,
     },
   },
   app: {

@@ -13,7 +13,7 @@ pnpm install
 pnpm --filter @split-bill/web dev
 ```
 
-The app is served at http://localhost:3000. The dev server stays on that port, which is the API's default CORS origin.
+The app is served at http://localhost:3000. The dev server stays on that port, which is the API's default CORS origin. `pnpm dev` turns the in-browser mock on when `NUXT_PUBLIC_USE_MOCK_API` is unset, so the four screens work without `apps/api`. That opt-in is only in the dev script. `pnpm build` and a deploy that omits the variable call the real API.
 
 ```bash
 pnpm --filter @split-bill/web test
@@ -25,18 +25,20 @@ pnpm --filter @split-bill/web build
 
 ## Environment
 
-Copy `.env.example` to `.env` if you want to override the defaults. Nuxt reads `NUXT_PUBLIC_*` into `runtimeConfig.public` (`nuxt.config.ts`). Nothing is hardcoded in the pages.
+Copy `.env.example` to `.env` to override the defaults. Nuxt reads `NUXT_PUBLIC_*` into `runtimeConfig.public` (`nuxt.config.ts`). Nothing is hardcoded in the pages.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `NUXT_PUBLIC_API_BASE_URL` | `http://localhost:3001` | Base URL of `apps/api`, no trailing slash. Used only when the mock is off. |
-| `NUXT_PUBLIC_USE_MOCK_API` | `true` | `true` keeps bills in `localStorage` and returns a sample parse. `false` calls the real API. |
+| `NUXT_PUBLIC_API_BASE_URL` | `http://localhost:3001` | Base URL of `apps/api`, no trailing slash. Used when the mock is off. |
+| `NUXT_PUBLIC_USE_MOCK_API` | `false` | `true` or `1` keeps bills in `localStorage` and returns a sample parse. Unset, empty, or `false` calls the real API. |
 
-Set `NUXT_PUBLIC_USE_MOCK_API=false` to call `POST /bills/parse`, `POST /bills`, `GET /bills/:id`, and `PUT /bills/:id`.
+`pnpm dev` sets the flag to `true` when it is unset in the environment and in `.env` / `.env.local` / `.env.development`. To point the dev server at the API, run `NUXT_PUBLIC_USE_MOCK_API=false pnpm --filter @split-bill/web dev`, or set `false` in `.env`. Do not set `true` for a production build or deploy: shared `/b/<id>` links would only exist in that browser's `localStorage`.
+
+With the mock off, the app calls `POST /bills/parse`, `POST /bills`, `GET /bills/:id`, and `PUT /bills/:id`.
 
 `POST /bills/parse` without `OPENAI_API_KEY` returns 503 `{ "error": "Bill parsing is not configured" }`. The upload screen explains that and offers manual entry. A 429 returns `{ "error": "Too many parse requests" }` and a `Retry-After` header in seconds. The screen shows that wait when the header is present, and still offers manual entry.
 
-In mock mode, a photo named with `fail` or `error` returns a parse error, `unavailable` returns 503, and `rate` returns 429 with a 30 second wait. "Coba bon contoh" / "Try a sample bill" runs the same parse path with a built-in cafe bill (including a negative pembulatan). Saved links work in the browser that created them; another device needs the real API.
+In mock mode (`pnpm dev`, or `NUXT_PUBLIC_USE_MOCK_API=true`), a photo named with `fail` or `error` returns a parse error, `unavailable` returns 503, and `rate` returns 429 with a 30 second wait. "Coba bon contoh" / "Try a sample bill" is shown only while the mock is on, and runs the same parse path with a built-in cafe bill (including a negative pembulatan). Those saved links stay in the browser that created them.
 
 ## Shared package
 

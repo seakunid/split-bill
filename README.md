@@ -57,7 +57,7 @@ Start the website on port 3000 (the API's default CORS origin):
 pnpm --filter @split-bill/web dev
 ```
 
-It uses a mock API until `NUXT_PUBLIC_USE_MOCK_API=false`. The API base URL defaults to `http://localhost:3001` (`NUXT_PUBLIC_API_BASE_URL`). See `apps/web/README.md`.
+`pnpm dev` for the web app uses the in-browser mock when `NUXT_PUBLIC_USE_MOCK_API` is unset. The built app defaults to the real API at `http://localhost:3001` (`NUXT_PUBLIC_API_BASE_URL`); set `NUXT_PUBLIC_USE_MOCK_API=false` to do that from the dev server too. See `apps/web/README.md`.
 
 The API reads `apps/api/.env` first, then fills any missing variables from the repo-root `.env`. Every variable is listed in `.env.example`. `pnpm install` builds `@split-bill/shared`, which is what the API and the web app import.
 
