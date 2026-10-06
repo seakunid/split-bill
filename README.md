@@ -12,7 +12,7 @@ pnpm workspace:
 
 - `packages/shared` — zod API contract and the split calculation. Owned with the API.
 - `apps/api` — Hono API, Prisma, Postgres.
-- `apps/web` — Nuxt app. Not part of this package; the workspace already includes `apps/*`.
+- `apps/web` — Nuxt frontend on port 3000. The workspace includes `apps/*`, so it installs with the rest.
 
 Import the contract from `@split-bill/shared`:
 
@@ -50,6 +50,14 @@ import {
    ```
 
 `pnpm db:migrate` creates a new migration during development. `pnpm typecheck`, `pnpm test`, and `pnpm build` run across the workspace.
+
+Start the website on port 3000 (the API's default CORS origin):
+
+```sh
+pnpm --filter @split-bill/web dev
+```
+
+`pnpm dev` for the web app uses the in-browser mock when `NUXT_PUBLIC_USE_MOCK_API` is unset. The built app defaults to the real API at `http://localhost:3001` (`NUXT_PUBLIC_API_BASE_URL`); set `NUXT_PUBLIC_USE_MOCK_API=false` to do that from the dev server too. See `apps/web/README.md`.
 
 The API reads `apps/api/.env` first, then fills any missing variables from the repo-root `.env`. Every variable is listed in `.env.example`. `pnpm install` builds `@split-bill/shared`, which is what the API and the web app import.
 
