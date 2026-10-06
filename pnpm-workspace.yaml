@@ -1,3 +1,11 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Replaces package.json "pnpm.onlyBuiltDependencies". pnpm 10 maps this
+# allow-list onto that setting; pnpm 11 reads allowBuilds directly.
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  prisma: true
+  esbuild: true

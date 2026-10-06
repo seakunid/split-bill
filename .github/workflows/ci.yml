@@ -36,10 +36,7 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Migrate database
-        run: |
-          if [ -f apps/api/prisma/schema.prisma ]; then
-            pnpm --filter @split-bill/api exec prisma migrate deploy
-          fi
+        run: pnpm db:deploy
       - name: Typecheck
         run: pnpm typecheck
       - name: Test
