@@ -17,7 +17,7 @@ export class VisionProviderError extends Error {
 const billJsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["currency", "items", "subtotal", "tax", "serviceCharge", "discount", "total"],
+  required: ["currency", "items", "subtotal", "tax", "serviceCharge", "discount", "rounding", "taxIncluded", "total"],
   properties: {
     currency: { type: "string" },
     items: {
@@ -38,6 +38,8 @@ const billJsonSchema = {
     tax: { type: "number" },
     serviceCharge: { type: "number" },
     discount: { type: "number" },
+    rounding: { type: "number" },
+    taxIncluded: { type: "boolean" },
     total: { type: "number" },
   },
 } as const;
@@ -49,7 +51,10 @@ items is one entry per printed line: name, quantity, unitPrice, and lineTotal.
 subtotal is the sum of line totals before tax, service, and discount.
 tax, serviceCharge, and discount are amounts, not percentages. Use 0 when one is absent.
 discount is a positive amount taken off the bill.
-total is the amount due.
+rounding is the pembulatan or cash-rounding line in whole rupiah. Positive if it increases the amount due, negative if it decreases it. Use 0 when there is no rounding line. Do not put pembulatan in items.
+taxIncluded is true only when the item prices already include tax (termasuk pajak / tax included) and tax is not added again on top of the subtotal. In that case set tax to 0. Leave the included tax inside the item line totals; do not move it into rounding.
+When tax is added on top (PPN, PB1), taxIncluded is false and tax is that added amount.
+total is the amount due printed on the bill.
 Indonesian bills may label tax as PPN or PB1 and service as service charge or SC.`;
 
 export function createOpenAIVision(options: {

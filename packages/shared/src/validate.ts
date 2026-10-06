@@ -3,7 +3,7 @@ import type { BillIssue, BillWrite } from "./schemas.js";
 /**
  * Rules a bill must satisfy before it can be saved.
  * Item subtotal is the sum of line totals. The bill total is
- * subtotal + tax + service charge - discount. Every item needs
+ * subtotal + tax + service charge - discount + rounding. Every item needs
  * at least one payer.
  */
 export function validateBillWrite(bill: BillWrite): BillIssue[] {
@@ -84,11 +84,11 @@ export function validateBillWrite(bill: BillWrite): BillIssue[] {
     });
   }
 
-  const expectedTotal = bill.subtotal + bill.tax + bill.serviceCharge - bill.discount;
+  const expectedTotal = bill.subtotal + bill.tax + bill.serviceCharge - bill.discount + bill.rounding;
   if (expectedTotal !== bill.total) {
     issues.push({
       code: "TOTAL_MISMATCH",
-      message: `Total ${bill.total} does not equal subtotal + tax + service charge - discount (${expectedTotal})`,
+      message: `Total ${bill.total} does not equal subtotal + tax + service charge - discount + rounding (${expectedTotal})`,
     });
   }
 

@@ -167,8 +167,8 @@ describe("calculateSplit", () => {
     expect(result.unassignedItemIds).toEqual([]);
     expect(result.total).toBe(0);
     expect(result.breakdown).toEqual([
-      { payerId: "a", name: "a", items: [], subtotal: 0, tax: 0, serviceCharge: 0, discount: 0, total: 0 },
-      { payerId: "b", name: "b", items: [], subtotal: 0, tax: 0, serviceCharge: 0, discount: 0, total: 0 },
+      { payerId: "a", name: "a", items: [], subtotal: 0, tax: 0, serviceCharge: 0, discount: 0, rounding: 0, total: 0 },
+      { payerId: "b", name: "b", items: [], subtotal: 0, tax: 0, serviceCharge: 0, discount: 0, rounding: 0, total: 0 },
     ]);
   });
 
@@ -209,6 +209,7 @@ describe("calculateSplit", () => {
       tax: 0,
       serviceCharge: 0,
       discount: 0,
+      rounding: 0,
       total: 0,
     });
     expect(byId(result, "a").total).toBe(45_000);
@@ -259,6 +260,48 @@ describe("calculateSplit", () => {
     expect(result.total).toBe(0);
   });
 
+  it("splits rounding like the other charges, including a negative pembulatan", () => {
+    const positive = split({
+      payers: [payer("small"), payer("large")],
+      items: [item("s", 10, ["small"]), item("l", 30, ["large"])],
+      rounding: 10,
+    });
+    expect(positive.breakdown.map((row) => row.rounding)).toEqual([2, 8]);
+    expect(positive.total).toBe(50);
+
+    const negative = split({
+      payers: [payer("a"), payer("b"), payer("c")],
+      items: [item("shared", 10_000, ["a", "b", "c"])],
+      rounding: -5,
+    });
+    expect(negative.breakdown.map((row) => row.rounding)).toEqual([-3, -1, -1]);
+    expect(negative.total).toBe(9_995);
+    expect(sum(negative.breakdown.map((row) => row.rounding))).toBe(-5);
+  });
+
+  it("holds back a proportional share of rounding for unassigned items", () => {
+    const result = split({
+      payers: [payer("a")],
+      items: [item("claimed", 50, ["a"]), item("open", 50, [])],
+      rounding: 10,
+    });
+    expect(byId(result, "a").rounding).toBe(5);
+    expect(byId(result, "a").total).toBe(55);
+    expect(result.total).toBe(55);
+  });
+
+  it("treats a missing rounding as zero", () => {
+    const result = calculateSplit({
+      payers: [payer("a")],
+      items: [item("nasi", 1_000, ["a"])],
+      tax: 0,
+      serviceCharge: 0,
+      discount: 0,
+    });
+    expect(byId(result, "a").rounding).toBe(0);
+    expect(result.total).toBe(1_000);
+  });
+
   it("rejects duplicate payer ids and non-integer money", () => {
     expect(() =>
       split({
@@ -299,11 +342,23 @@ describe("validateBillWrite", () => {
     total: 34_000,
   };
 
-  it("accepts a consistent bill and defaults currency to IDR", () => {
+  it("accepts a consistent bill and defaults currency and rounding", () => {
     const { currency: _currency, ...withoutCurrency } = valid;
     const parsed = billWriteSchema.parse(withoutCurrency);
     expect(parsed.currency).toBe("IDR");
+    expect(parsed.rounding).toBe(0);
     expect(validateBillWrite(parsed)).toEqual([]);
+  });
+
+  it("includes rounding in the total, positive or negative", () => {
+    const roundedUp = billWriteSchema.parse({ ...valid, rounding: 200, total: 34_200 });
+    expect(validateBillWrite(roundedUp)).toEqual([]);
+
+    const roundedDown = billWriteSchema.parse({ ...valid, rounding: -500, total: 33_500 });
+    expect(validateBillWrite(roundedDown)).toEqual([]);
+
+    const mismatch = billWriteSchema.parse({ ...valid, rounding: -500, total: 34_000 });
+    expect(validateBillWrite(mismatch).map((issue) => issue.code)).toContain("TOTAL_MISMATCH");
   });
 
   it("reports unassigned items, bad references, and total mismatches", () => {

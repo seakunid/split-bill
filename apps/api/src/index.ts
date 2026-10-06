@@ -15,7 +15,16 @@ const vision = env.openaiApiKey
     })
   : null;
 
-const app = createApp({ prisma, vision, corsOrigin: env.corsOrigin });
+const app = createApp({
+  prisma,
+  vision,
+  corsOrigin: env.corsOrigin,
+  parseRateLimit: {
+    max: env.parseRateLimitMax,
+    windowMs: env.parseRateLimitWindowSeconds * 1000,
+    trustProxy: env.trustProxy,
+  },
+});
 
 serve({ fetch: app.fetch, port: env.port }, (info) => {
   console.log(`API listening on http://localhost:${info.port}`);

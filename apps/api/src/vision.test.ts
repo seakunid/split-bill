@@ -31,6 +31,9 @@ describe("createOpenAIVision", () => {
       messages: Array<{ content: string | Array<{ type: string; image_url?: { url: string } }> }>;
     };
     expect(body.model).toBe("gpt-4o");
+    const schema = (seen.body as { response_format: { json_schema: { schema: { required: string[] } } } }).response_format
+      .json_schema.schema;
+    expect(schema.required).toEqual(expect.arrayContaining(["rounding", "taxIncluded", "total"]));
     const user = body.messages[1]?.content;
     expect(Array.isArray(user)).toBe(true);
     if (!Array.isArray(user)) return;

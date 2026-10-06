@@ -82,6 +82,7 @@ function scalars(input: BillWrite) {
     tax: BigInt(input.tax),
     serviceCharge: BigInt(input.serviceCharge),
     discount: BigInt(input.discount),
+    rounding: BigInt(input.rounding),
     total: BigInt(input.total),
     imageUrl: input.imageUrl ?? null,
   };
@@ -138,6 +139,7 @@ function toResponse(bill: StoredBill): BillResponse {
     tax: money(bill.tax),
     serviceCharge: money(bill.serviceCharge),
     discount: money(bill.discount),
+    rounding: signedAmount(bill.rounding),
   });
   return {
     id: bill.id,
@@ -149,6 +151,7 @@ function toResponse(bill: StoredBill): BillResponse {
     tax: money(bill.tax),
     serviceCharge: money(bill.serviceCharge),
     discount: money(bill.discount),
+    rounding: signedAmount(bill.rounding),
     total: money(bill.total),
     imageUrl: bill.imageUrl,
     breakdown: split.breakdown,
@@ -158,8 +161,16 @@ function toResponse(bill: StoredBill): BillResponse {
 }
 
 function money(value: bigint): number {
+  const amount = signedAmount(value);
+  if (amount < 0) {
+    throw new HttpError("Stored amount is outside the supported range", 500);
+  }
+  return amount;
+}
+
+function signedAmount(value: bigint): number {
   const amount = Number(value);
-  if (!Number.isSafeInteger(amount) || amount < 0) {
+  if (!Number.isSafeInteger(amount)) {
     throw new HttpError("Stored amount is outside the supported range", 500);
   }
   return amount;

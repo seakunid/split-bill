@@ -45,6 +45,7 @@ function bill(overrides: Partial<BillWrite> = {}): BillWrite {
     tax: 11_000,
     serviceCharge: 7_500,
     discount: 3_000,
+    rounding: 0,
     total: 115_500,
     imageUrl: null,
   };
@@ -119,6 +120,74 @@ describe("bills", () => {
     expect(created.breakdown[0]?.total).toBe(2_500_000_000);
   });
 
+  it("persists rounding and splits a negative pembulatan", async () => {
+    const input = bill({
+      items: [{ id: "nasi", name: "Nasi", quantity: 1, unitPrice: 10_000, lineTotal: 10_000 }],
+      payers: [
+        { id: "ani", name: "Ani" },
+        { id: "budi", name: "Budi" },
+        { id: "citra", name: "Citra" },
+      ],
+      assignments: [
+        { itemId: "nasi", payerId: "ani" },
+        { itemId: "nasi", payerId: "budi" },
+        { itemId: "nasi", payerId: "citra" },
+      ],
+      subtotal: 10_000,
+      tax: 0,
+      serviceCharge: 0,
+      discount: 0,
+      rounding: -5,
+      total: 9_995,
+    });
+    const created = await postBill(input);
+    expect(created.rounding).toBe(-5);
+    expect(created.breakdown.map((row) => row.rounding)).toEqual([-3, -1, -1]);
+    expect(created.breakdown.reduce((sum, row) => sum + row.total, 0)).toBe(9_995);
+
+    const omitted = await app.request("/bills", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: [{ id: "teh", name: "Teh", quantity: 1, unitPrice: 8_000, lineTotal: 8_000 }],
+        payers: [{ id: "ani2", name: "Ani" }],
+        assignments: [{ itemId: "teh", payerId: "ani2" }],
+        subtotal: 8_000,
+        tax: 0,
+        serviceCharge: 0,
+        discount: 0,
+        total: 8_000,
+      }),
+    });
+    expect(omitted.status).toBe(201);
+    const saved = billResponseSchema.parse(await omitted.json());
+    expect(saved.rounding).toBe(0);
+    expect(saved.breakdown[0]?.rounding).toBe(0);
+  });
+
+  it("rejects a total that ignores rounding", async () => {
+    const response = await app.request("/bills", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        bill({
+          items: [{ id: "nasi", name: "Nasi", quantity: 1, unitPrice: 10_000, lineTotal: 10_000 }],
+          payers: [{ id: "ani", name: "Ani" }],
+          assignments: [{ itemId: "nasi", payerId: "ani" }],
+          subtotal: 10_000,
+          tax: 0,
+          serviceCharge: 0,
+          discount: 0,
+          rounding: 100,
+          total: 10_000,
+        }),
+      ),
+    });
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { issues: Array<{ code: string }> };
+    expect(body.issues.map((issue) => issue.code)).toContain("TOTAL_MISMATCH");
+  });
+
   it("rejects unassigned items and inconsistent totals", async () => {
     const unassigned = await app.request("/bills", {
       method: "POST",
@@ -177,6 +246,7 @@ describe("bills", () => {
         tax: 1_500,
         serviceCharge: 0,
         discount: 0,
+        rounding: 0,
         total: 16_500,
       },
     ]);

@@ -8,6 +8,9 @@ export type Env = {
   openaiApiKey: string | null;
   openaiModel: string;
   openaiBaseUrl: string;
+  parseRateLimitMax: number;
+  parseRateLimitWindowSeconds: number;
+  trustProxy: boolean;
 };
 
 /** `apps/api/.env` wins. The repo-root `.env` fills anything still unset. */
@@ -33,5 +36,26 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     openaiApiKey: apiKey.length > 0 ? apiKey : null,
     openaiModel: source.OPENAI_MODEL?.trim() || "gpt-4o",
     openaiBaseUrl: source.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1",
+    parseRateLimitMax: readPositiveInt(source, "PARSE_RATE_LIMIT_MAX", 10),
+    parseRateLimitWindowSeconds: readPositiveInt(source, "PARSE_RATE_LIMIT_WINDOW_SECONDS", 60),
+    trustProxy: readBoolean(source, "TRUST_PROXY", false),
   };
+}
+
+function readPositiveInt(source: NodeJS.ProcessEnv, name: string, fallback: number): number {
+  const raw = source[name]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return value;
+}
+
+function readBoolean(source: NodeJS.ProcessEnv, name: string, fallback: boolean): boolean {
+  const raw = source[name]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  if (raw === "1" || raw === "true" || raw === "yes") return true;
+  if (raw === "0" || raw === "false" || raw === "no") return false;
+  throw new Error(`${name} must be true or false`);
 }

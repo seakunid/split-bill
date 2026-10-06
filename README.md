@@ -2,7 +2,9 @@
 
 No-login split-bill app. Upload a photo of a restaurant bill, edit the parsed items, assign them to payers, and share a link at `/b/<id>`.
 
-Currency is IDR. Amounts are whole rupiah. Shared items are split equally. Tax, service charge, and discount follow each payer's share of the item subtotal. Rounding leftovers go to the payer with the largest share so the payer totals match the bill total.
+Currency is IDR. Amounts are whole rupiah. Shared items are split equally. Tax, service charge, discount, and rounding follow each payer's share of the item subtotal. Rounding leftovers go to the payer with the largest share so the payer totals match the bill total.
+
+`rounding` is an optional whole-rupiah pembulatan on create, update, and the parsed draft. It may be negative, and it defaults to 0 when omitted, so older clients keep working. The bill total is subtotal + tax + service charge − discount + rounding. Each payer's breakdown includes their `rounding` share.
 
 ## Layout
 
@@ -53,6 +55,8 @@ The API reads `apps/api/.env` first, then fills any missing variables from the r
 
 Photo parsing calls OpenAI (`gpt-4o` by default, override with `OPENAI_MODEL`). The rest of the API runs without a key; `POST /bills/parse` returns 503 until `OPENAI_API_KEY` is set. Tests mock that call.
 
+`POST /bills/parse` is limited per client IP. The default is 10 requests per 60 seconds (`PARSE_RATE_LIMIT_MAX` and `PARSE_RATE_LIMIT_WINDOW_SECONDS`). The counter is stored in memory inside this process, so a restart clears it and each API instance keeps its own count. A limited request returns 429 `{ "error": "Too many parse requests" }` and a `Retry-After` header. Forwarded IP headers are ignored unless `TRUST_PROXY=true`. Turn that on only when the reverse proxy overwrites `X-Forwarded-For` or `X-Real-IP`; otherwise a client can spoof those headers and dodge the limit.
+
 ## Env vars
 
 | Variable | Purpose |
@@ -63,3 +67,6 @@ Photo parsing calls OpenAI (`gpt-4o` by default, override with `OPENAI_MODEL`). 
 | `OPENAI_API_KEY` | Vision API key for bill photos |
 | `OPENAI_MODEL` | Vision model, default `gpt-4o` |
 | `OPENAI_BASE_URL` | OpenAI-compatible base URL |
+| `PARSE_RATE_LIMIT_MAX` | Parse requests allowed per IP per window, default `10` |
+| `PARSE_RATE_LIMIT_WINDOW_SECONDS` | Rate-limit window length, default `60` |
+| `TRUST_PROXY` | When `true`, use `X-Forwarded-For` or `X-Real-IP` for the parse limit. Default `false` |

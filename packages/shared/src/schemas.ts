@@ -11,6 +11,9 @@ export const apiRoutes = {
 
 const moneySchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
+/** Whole rupiah. Negative values are a pembulatan that reduces the amount due. */
+const signedMoneySchema = z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER);
+
 /** Client-supplied item and payer ids, and server-generated bill ids. */
 export const idSchema = z
   .string()
@@ -39,6 +42,8 @@ export const parsedBillDraftSchema = z
     tax: moneySchema,
     serviceCharge: moneySchema,
     discount: moneySchema,
+    /** Pembulatan. Omitted values default to 0 so older clients keep working. */
+    rounding: signedMoneySchema.default(0),
     total: moneySchema,
   })
   .strict();
@@ -72,6 +77,8 @@ export const billWriteSchema = z
     tax: moneySchema,
     serviceCharge: moneySchema,
     discount: moneySchema,
+    /** Pembulatan. Omitted values default to 0 so older clients keep working. */
+    rounding: signedMoneySchema.default(0),
     total: moneySchema,
     imageUrl: z.string().trim().min(1).max(2000).nullable().optional(),
   })
@@ -94,6 +101,7 @@ export const payerBreakdownSchema = z
     tax: moneySchema,
     serviceCharge: moneySchema,
     discount: moneySchema,
+    rounding: signedMoneySchema,
     total: z.number().int().max(Number.MAX_SAFE_INTEGER),
   })
   .strict();
@@ -110,6 +118,7 @@ export const billResponseSchema = z
     tax: moneySchema,
     serviceCharge: moneySchema,
     discount: moneySchema,
+    rounding: signedMoneySchema,
     total: moneySchema,
     imageUrl: z.string().nullable(),
     breakdown: z.array(payerBreakdownSchema),

@@ -1,18 +1,41 @@
 import { billResponseSchema, billWriteSchema, idSchema, PARSE_IMAGE_FIELD_NAME, type ApiError } from "@split-bill/shared";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { PrismaClient } from "@prisma/client";
 import { ZodError } from "zod";
 import { createBill, getBill, updateBill } from "../bills.js";
 import { HttpError } from "../http.js";
 import { ImageUploadError, readBillImage } from "../image.js";
 import { DraftNormalizationError, normalizeParsedBill } from "../normalize.js";
+import { resolveClientIp, type RateLimiter } from "../rate-limit.js";
 import type { BillVision } from "../vision.js";
 import { VisionProviderError } from "../vision.js";
 
-export function billRoutes(deps: { prisma: PrismaClient; vision: BillVision | null }) {
+export function billRoutes(deps: {
+  prisma: PrismaClient;
+  vision: BillVision | null;
+  trustProxy: boolean;
+  rateLimiter: RateLimiter;
+  getRemoteAddress: (c: Context) => string | null;
+}) {
   const routes = new Hono();
 
   routes.post("/bills/parse", async (c) => {
+    const decision = deps.rateLimiter.check(
+      resolveClientIp(
+        {
+          remoteAddress: deps.getRemoteAddress(c),
+          forwardedFor: c.req.header("x-forwarded-for") ?? null,
+          realIp: c.req.header("x-real-ip") ?? null,
+        },
+        deps.trustProxy,
+      ),
+    );
+    if (!decision.allowed) {
+      return c.json({ error: "Too many parse requests" } satisfies ApiError, 429, {
+        "Retry-After": String(decision.retryAfterSeconds),
+      });
+    }
+
     if (!deps.vision) {
       return c.json({ error: "Bill parsing is not configured" } satisfies ApiError, 503);
     }

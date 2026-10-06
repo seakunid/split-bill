@@ -19,6 +19,8 @@ export type SplitBillInput = {
   tax: number;
   serviceCharge: number;
   discount: number;
+  /** Pembulatan in whole rupiah. Omitted or zero leaves the split unchanged. */
+  rounding?: number;
 };
 
 export type SplitResult = {
@@ -36,23 +38,27 @@ export type SplitResult = {
  * rupiah (shares differ by at most one). Extra rupiah go to the earliest
  * payers in `payers` order.
  *
- * Tax, service charge, and discount are split in proportion to each payer's
- * item subtotal, including a virtual share for unassigned line totals so a
- * partially assigned bill does not dump those charges onto the people who
+ * Tax, service charge, discount, and rounding are split in proportion to each
+ * payer's item subtotal, including a virtual share for unassigned line totals
+ * so a partially assigned bill does not dump those charges onto the people who
  * already claimed items. Each of those amounts is floored, and any leftover
  * rupiah go entirely to the payer with the largest item subtotal (the
- * earliest payer on a tie). When every item is assigned, per-payer totals
- * sum to the sum of line totals + tax + service charge - discount.
+ * earliest payer on a tie). A negative rounding uses the same rule on its
+ * magnitude, so the largest share also receives the leftover reduction.
+ * When every item is assigned, per-payer totals sum to the sum of line totals
+ * + tax + service charge - discount + rounding.
  *
- * If every line total is zero, tax, service, and discount are split equally
- * across payers so a charges-only bill still adds up.
+ * If every line total is zero, tax, service, discount, and rounding are split
+ * equally across payers so a charges-only bill still adds up.
  */
 export function calculateSplit(input: SplitBillInput): SplitResult {
+  const rounding = input.rounding ?? 0;
   assertUnique(input.payers.map((payer) => payer.id), "payer");
   assertUnique(input.items.map((item) => item.id), "item");
   assertMoney("tax", input.tax);
   assertMoney("serviceCharge", input.serviceCharge);
   assertMoney("discount", input.discount);
+  assertSignedMoney("rounding", rounding);
 
   const payerIndex = new Map(input.payers.map((payer, index) => [payer.id, index]));
   const sharesByPayer: ItemShareDraft[][] = input.payers.map(() => []);
@@ -85,12 +91,14 @@ export function calculateSplit(input: SplitBillInput): SplitResult {
   const taxes = allocateCharge(input.tax, subtotals, unassignedWeight);
   const services = allocateCharge(input.serviceCharge, subtotals, unassignedWeight);
   const discounts = allocateCharge(input.discount, subtotals, unassignedWeight);
+  const roundings = allocateCharge(rounding, subtotals, unassignedWeight);
 
   const breakdown: PayerBreakdown[] = input.payers.map((payer, index) => {
     const subtotal = subtotals[index] ?? 0;
     const tax = taxes[index] ?? 0;
     const serviceCharge = services[index] ?? 0;
     const discount = discounts[index] ?? 0;
+    const payerRounding = roundings[index] ?? 0;
     return {
       payerId: payer.id,
       name: payer.name,
@@ -99,7 +107,8 @@ export function calculateSplit(input: SplitBillInput): SplitResult {
       tax,
       serviceCharge,
       discount,
-      total: subtotal + tax + serviceCharge - discount,
+      rounding: payerRounding,
+      total: subtotal + tax + serviceCharge - discount + payerRounding,
     };
   });
 
@@ -169,6 +178,12 @@ function distribute(amount: number, weights: number[]): number[] {
 function assertMoney(label: string, value: number): void {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${label} must be a non-negative safe integer`);
+  }
+}
+
+function assertSignedMoney(label: string, value: number): void {
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(`${label} must be a safe integer`);
   }
 }
 
