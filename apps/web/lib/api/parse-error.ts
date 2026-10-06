@@ -1,19 +1,9 @@
-/**
- * Optional `code` on `{ error }` bodies from `POST /bills/parse`.
- *
- * This matches the field PR #4 adds to `@split-bill/shared` `ApiError`
- * (`vision_unavailable` | `vision_unreadable`). That change is not on main
- * yet, so the field is read locally and ignored when it is missing or not a
- * string. After #4 merges, switch this alias to the shared type.
- */
-export const parseErrorCodes = ['vision_unavailable', 'vision_unreadable'] as const
+import { parseErrorCodes, type ApiError } from '@split-bill/shared'
 
-export type ParseErrorCode = (typeof parseErrorCodes)[number]
-
-export function readParseErrorCode(value: unknown): ParseErrorCode | undefined {
+export function readParseErrorCode(value: unknown): ApiError['code'] {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
-  return (parseErrorCodes as readonly string[]).includes(normalized) ? (normalized as ParseErrorCode) : undefined
+  return (parseErrorCodes as readonly string[]).includes(normalized) ? (normalized as NonNullable<ApiError['code']>) : undefined
 }
 
 export type UploadErrorInput = {
