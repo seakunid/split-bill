@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ApiError } from '../../lib/api'
+import { clientErrorKey } from '../../lib/api/parse-error'
 import { calculateSplit } from '@split-bill/shared'
 import { formatRupiah } from '../../lib/money'
 import { payerColor, payerInitial } from '../../lib/payers'
@@ -74,7 +75,7 @@ async function save() {
     await navigateTo(`/b/${saved.id}`)
     clear()
   } catch (error) {
-    const code = error instanceof ApiError ? error.code : 'UNKNOWN'
+    const code = clientErrorKey(error instanceof ApiError ? error.code : 'UNKNOWN', import.meta.dev)
     const translated = t(`errors.${code}`)
     errorText.value = translated === `errors.${code}` ? t('errors.UNKNOWN') : translated
   } finally {

@@ -1,8 +1,11 @@
 import type { ApiError as ApiErrorBody } from '@split-bill/shared'
+import type { ParseErrorCode } from './parse-error'
 
 export class ApiError extends Error {
   readonly status: number
   readonly code: string
+  /** Optional parse `code` from the JSON body. Absent on older responses and on 429. */
+  readonly serverCode?: ParseErrorCode
   readonly issues: NonNullable<ApiErrorBody['issues']>
   readonly retryAfterSeconds?: number
 
@@ -10,12 +13,17 @@ export class ApiError extends Error {
     message: string,
     status: number,
     code: string,
-    extras?: { issues?: NonNullable<ApiErrorBody['issues']>; retryAfterSeconds?: number },
+    extras?: {
+      issues?: NonNullable<ApiErrorBody['issues']>
+      retryAfterSeconds?: number
+      serverCode?: ParseErrorCode
+    },
   ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.serverCode = extras?.serverCode
     this.issues = extras?.issues ?? []
     this.retryAfterSeconds = extras?.retryAfterSeconds
   }
