@@ -13,6 +13,7 @@ export {
   itemShareSchema,
   parsedBillDraftSchema,
   parsedItemSchema,
+  parseErrorCodes,
   payerBreakdownSchema,
   payerInputSchema,
 } from "./schemas.js";
@@ -28,6 +29,7 @@ export type {
   ItemShare,
   ParsedBillDraft,
   ParsedItem,
+  ParseErrorCode,
   PayerBreakdown,
   PayerInput,
 } from "./schemas.js";

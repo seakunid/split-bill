@@ -1,6 +1,6 @@
-import { PARSE_IMAGE_FIELD_NAME, parsedBillDraftSchema } from "@split-bill/shared";
+import { PARSE_IMAGE_FIELD_NAME, apiErrorSchema, parsedBillDraftSchema } from "@split-bill/shared";
 import type { PrismaClient } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
 import { readBillImage } from "./image.js";
 import type { BillVision } from "./vision.js";
@@ -69,31 +69,91 @@ describe("POST /bills/parse", () => {
   });
 
   it("returns 422 when the model payload cannot be normalized", async () => {
-    const response = await appWith({
-      async parse() {
-        return { currency: "ID", items: [] };
-      },
-    }).request("/bills/parse", {
-      method: "POST",
-      body: formWithImage(),
-    });
-    expect(response.status).toBe(422);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const response = await appWith({
+        async parse() {
+          return { currency: "ID", items: [] };
+        },
+      }).request("/bills/parse", {
+        method: "POST",
+        body: formWithImage(),
+      });
+      expect(response.status).toBe(422);
+      expect(apiErrorSchema.parse(await response.json())).toEqual({
+        error: "Parsed bill did not match the expected shape",
+        code: "vision_unreadable",
+      });
+      expect(warn).toHaveBeenCalled();
+      const line = warn.mock.calls.map((args) => args.map(String).join(" ")).join("\n");
+      expect(line).toContain("parse draft rejected");
+      expect(line).toContain("currency");
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("returns 502 when the vision provider fails", async () => {
-    const response = await appWith({
-      async parse() {
-        throw new VisionProviderError("down");
-      },
-    }).request("/bills/parse", { method: "POST", body: formWithImage() });
-    expect(response.status).toBe(502);
-    const body = (await response.json()) as { error: string };
-    expect(body.error).not.toContain("down");
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await appWith({
+        async parse() {
+          throw new VisionProviderError({
+            code: "vision_unavailable",
+            providerStatus: 429,
+            providerType: "insufficient_quota",
+            providerCode: "insufficient_quota",
+            detail: "You exceeded your current quota",
+          });
+        },
+      }).request("/bills/parse", { method: "POST", body: formWithImage() });
+      expect(response.status).toBe(502);
+      expect(apiErrorSchema.parse(await response.json())).toEqual({
+        error: "Could not parse the bill image",
+        code: "vision_unavailable",
+      });
+      const line = errorLog.mock.calls.map((args) => args.map(String).join(" ")).join("\n");
+      expect(line).toContain("status=429");
+      expect(line).toContain("insufficient_quota");
+      expect(line).toContain("You exceeded your current quota");
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it("returns 502 for an unreadable provider result without the provider text", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await appWith({
+        async parse() {
+          throw new VisionProviderError({
+            code: "vision_unreadable",
+            providerStatus: 200,
+            providerType: null,
+            providerCode: null,
+            detail: "invalid JSON from the model",
+          });
+        },
+      }).request("/bills/parse", { method: "POST", body: formWithImage() });
+      expect(response.status).toBe(502);
+      const body = apiErrorSchema.parse(await response.json());
+      expect(body).toEqual({
+        error: "Could not parse the bill image",
+        code: "vision_unreadable",
+      });
+      expect(JSON.stringify(body)).not.toContain("invalid JSON from the model");
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 
   it("returns 503 when no API key is configured", async () => {
     const response = await appWith(null).request("/bills/parse", { method: "POST", body: formWithImage() });
     expect(response.status).toBe(503);
+    expect(apiErrorSchema.parse(await response.json())).toEqual({
+      error: "Bill parsing is not configured",
+      code: "vision_unavailable",
+    });
   });
 });
 

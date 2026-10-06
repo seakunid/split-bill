@@ -23,10 +23,23 @@ describe("loadEnvFiles", () => {
     process.env.SPLIT_BILL_ENV_TEST_B = "from-process";
 
     try {
-      loadEnvFiles({ higher, lower });
+      const loaded = loadEnvFiles({ higher, lower });
+      expect(loaded).toEqual([higher, lower]);
       expect(process.env.SPLIT_BILL_ENV_TEST_A).toBe("from-api");
       expect(process.env.SPLIT_BILL_ENV_TEST_B).toBe("from-process");
       expect(process.env.SPLIT_BILL_ENV_TEST_C).toBe("from-root");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports only the env files that exist, higher file first", () => {
+    const dir = mkdtempSync(join(tmpdir(), "split-bill-env-"));
+    const higher = join(dir, "missing.env");
+    const lower = join(dir, "root.env");
+    writeFileSync(lower, "SPLIT_BILL_ENV_TEST_A=from-root\n");
+    try {
+      expect(loadEnvFiles({ higher, lower })).toEqual([lower]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

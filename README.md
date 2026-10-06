@@ -27,6 +27,8 @@ import {
 
 `POST /bills/parse` reads a multipart image in the field `image` (`PARSE_IMAGE_FIELD_NAME`). Saving a bill uses `billWriteSchema`. Responses use `billResponseSchema`, including a per-payer `breakdown`.
 
+`ApiError` may include an optional `code`. Parse failures use `vision_unavailable` when parsing cannot run right now: no key, rejected credentials, quota, the provider's own rate limit, a timeout, a network error, a provider 5xx, an unknown or inaccessible model (`model_not_found`), or an unsupported request parameter such as `response_format`. `vision_unreadable` is only when the image itself is the problem: the provider rejects the image, the model returns empty or invalid JSON, or the draft fails normalization (HTTP 422). The `error` string stays generic. Provider failures are HTTP 502, so they are separate from the per-IP HTTP 429, which has no `code`. Older clients can ignore `code`.
+
 ## Running locally
 
 1. Start Postgres:
@@ -52,6 +54,8 @@ import {
 One `.env` at the repo root is enough for every root and API script: `pnpm db:deploy`, `pnpm db:migrate` (create a migration while developing), `pnpm db:generate`, `pnpm db:studio`, `pnpm dev`, and the built server (`node apps/api/dist/index.js`).
 
 Variables already set in the environment win, which is what production and CI use. Otherwise `apps/api/.env` wins over the repo-root `.env`, and the root file fills anything still unset. Prisma loads those same files from `apps/api/prisma.config.ts`, so it sees `DATABASE_URL` in the root `.env` when you run `pnpm db:deploy` from the repo root.
+
+On startup the API logs one line: port, CORS origins, whether a vision key is set (`yes` or `no`), the model, and which `.env` files were loaded. When more than one file is listed, the first one wins, so an old `apps/api/.env` overriding the root file shows up there. The line does not include secrets.
 
 `pnpm typecheck`, `pnpm test`, and `pnpm build` run across the workspace.
 
