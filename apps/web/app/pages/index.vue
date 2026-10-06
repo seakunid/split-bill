@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ApiError } from '../../lib/api'
+import { clientErrorKey, uploadErrorKey } from '../../lib/api/parse-error'
 
 const { t } = useI18n()
 const { api, useMock } = useBillApi()
@@ -23,14 +24,15 @@ let stageTimer: ReturnType<typeof setInterval> | null = null
 
 const hasDraft = computed(() => draft.value.items.length > 0)
 const errorText = computed(() => {
-  if (errorCode.value === 'RATE_LIMITED') {
+  const key = clientErrorKey(errorCode.value, import.meta.dev)
+  if (key === 'RATE_LIMITED') {
     return retryAfterSeconds.value == null
       ? t('errors.RATE_LIMITED')
       : t('errors.RATE_LIMITED_WAIT', { seconds: retryAfterSeconds.value })
   }
-  const key = `errors.${errorCode.value}`
-  const translated = t(key)
-  return translated === key ? t('errors.UNKNOWN') : translated
+  const path = `errors.${key}`
+  const translated = t(path)
+  return translated === path ? t('errors.UNKNOWN') : translated
 })
 
 const stageText = computed(() => {
@@ -72,7 +74,9 @@ async function runParse(file: File) {
     await navigateTo('/review')
   } catch (error) {
     phase.value = 'error'
-    errorCode.value = error instanceof ApiError ? error.code : 'UNKNOWN'
+    errorCode.value = error instanceof ApiError
+      ? uploadErrorKey({ status: error.status, clientCode: error.code, serverCode: error.serverCode })
+      : 'UNKNOWN'
     retryAfterSeconds.value = error instanceof ApiError ? (error.retryAfterSeconds ?? null) : null
   } finally {
     stopStages()

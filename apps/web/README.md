@@ -36,7 +36,9 @@ Copy `.env.example` to `.env` to override the defaults. Nuxt reads `NUXT_PUBLIC_
 
 With the mock off, the app calls `POST /bills/parse`, `POST /bills`, `GET /bills/:id`, and `PUT /bills/:id`.
 
-`POST /bills/parse` without `OPENAI_API_KEY` returns 503 `{ "error": "Bill parsing is not configured" }`. The upload screen explains that and offers manual entry. A 429 returns `{ "error": "Too many parse requests" }` and a `Retry-After` header in seconds. The screen shows that wait when the header is present, and still offers manual entry.
+`POST /bills/parse` without `OPENAI_API_KEY` returns 503 `{ "error": "Bill parsing is not configured" }`. The upload screen explains that and offers manual entry. A 429 returns `{ "error": "Too many parse requests" }` and a `Retry-After` header in seconds, with no `code`. The screen shows that wait when the header is present, and still offers manual entry.
+
+A 502 may include an optional `code` (added in backend PR #4, read here even when that field is absent). `vision_unavailable` means parsing cannot run right now. `vision_unreadable` means this photo could not be read. A 502 or other 5xx with no `code` uses a generic "couldn't read the bill" message. Only a thrown `fetch` (offline or CORS) says the server could not be reached, and the sample-mode hint on that message is limited to `nuxt dev`.
 
 In mock mode (`pnpm dev`, or `NUXT_PUBLIC_USE_MOCK_API=true`), a photo named with `fail` or `error` returns a parse error, `unavailable` returns 503, and `rate` returns 429 with a 30 second wait. "Coba bon contoh" / "Try a sample bill" is shown only while the mock is on, and runs the same parse path with a built-in cafe bill (including a negative pembulatan). Those saved links stay in the browser that created them.
 

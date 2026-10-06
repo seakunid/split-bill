@@ -1,5 +1,6 @@
 import type { BillResponse, BillWrite, ParsedBillDraft } from '@split-bill/shared'
 import { ApiError, parseRetryAfter } from './errors'
+import { readParseErrorCode } from './parse-error'
 import type { BillApi } from './types'
 
 export function createHttpApi(baseUrl: string): BillApi {
@@ -49,6 +50,7 @@ async function request<T>(url: string, init: { method?: string; body?: BodyInit;
     const parsed = await readError(response)
     throw new ApiError(parsed.message, response.status, statusCode(response.status), {
       issues: parsed.issues,
+      serverCode: parsed.serverCode,
       retryAfterSeconds: parseRetryAfter(response.headers.get('Retry-After')),
     })
   }
@@ -60,7 +62,11 @@ async function request<T>(url: string, init: { method?: string; body?: BodyInit;
   }
 }
 
-async function readError(response: Response): Promise<{ message: string; issues?: ApiError['issues'] }> {
+async function readError(response: Response): Promise<{
+  message: string
+  issues?: ApiError['issues']
+  serverCode?: ApiError['serverCode']
+}> {
   try {
     const data: unknown = await response.json()
     if (data && typeof data === 'object') {
@@ -71,7 +77,7 @@ async function readError(response: Response): Promise<{ message: string; issues?
           ? record.message
           : response.statusText || `HTTP ${response.status}`
       const issues = Array.isArray(record.issues) ? record.issues.filter(isIssue) : undefined
-      return { message, issues }
+      return { message, issues, serverCode: readParseErrorCode(record.code) }
     }
   } catch {
     // Fall through to the status text.

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ApiError } from '../../../lib/api'
+import { clientErrorKey } from '../../../lib/api/parse-error'
 import type { BillResponse } from '@split-bill/shared'
 import { formatRupiah } from '../../../lib/money'
 import { payerColor, payerInitial } from '../../../lib/payers'
@@ -29,7 +30,7 @@ onMounted(async () => {
   try {
     bill.value = await api.value.get(id.value)
   } catch (error) {
-    errorCode.value = error instanceof ApiError ? error.code : 'UNKNOWN'
+    errorCode.value = clientErrorKey(error instanceof ApiError ? error.code : 'UNKNOWN', import.meta.dev)
   } finally {
     loading.value = false
   }
