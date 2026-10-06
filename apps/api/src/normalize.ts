@@ -1,9 +1,12 @@
 import { parsedBillDraftSchema, type ParsedBillDraft } from "@split-bill/shared";
 
 export class DraftNormalizationError extends Error {
-  constructor(message: string) {
+  readonly issues: readonly string[];
+
+  constructor(message: string, issues: readonly string[] = []) {
     super(message);
     this.name = "DraftNormalizationError";
+    this.issues = issues;
   }
 }
 
@@ -82,7 +85,13 @@ export function normalizeParsedBill(raw: unknown): ParsedBillDraft {
     total,
   });
   if (!parsed.success) {
-    throw new DraftNormalizationError("Parsed bill did not match the expected shape");
+    throw new DraftNormalizationError(
+      "Parsed bill did not match the expected shape",
+      parsed.error.issues.map((issue) => {
+        const path = issue.path.map(String).join(".") || "(root)";
+        return `${path}: ${issue.message}`;
+      }),
+    );
   }
   return parsed.data;
 }

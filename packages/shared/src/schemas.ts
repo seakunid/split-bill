@@ -147,9 +147,18 @@ export const billIssueSchema = z
   })
   .strict();
 
+/**
+ * Why a parse failed, without provider text or secrets.
+ * `vision_unavailable` means parsing cannot run right now.
+ * `vision_unreadable` means this photo could not be turned into a bill.
+ * Omitted on every other error, including the per-IP 429.
+ */
+export const parseErrorCodes = ["vision_unavailable", "vision_unreadable"] as const;
+
 export const apiErrorSchema = z
   .object({
     error: z.string(),
+    code: z.enum(parseErrorCodes).optional(),
     issues: z
       .array(
         z
@@ -178,4 +187,5 @@ export type PayerBreakdown = z.infer<typeof payerBreakdownSchema>;
 export type BillResponse = z.infer<typeof billResponseSchema>;
 export type BillIssueCode = (typeof billIssueCodes)[number];
 export type BillIssue = z.infer<typeof billIssueSchema>;
+export type ParseErrorCode = (typeof parseErrorCodes)[number];
 export type ApiError = z.infer<typeof apiErrorSchema>;

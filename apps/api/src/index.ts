@@ -2,10 +2,20 @@ import { serve } from "@hono/node-server";
 import { PrismaClient } from "@prisma/client";
 import { createApp } from "./app.js";
 import { loadDotenv, loadEnv } from "./env.js";
+import { formatStartupSummary } from "./startup-log.js";
 import { createOpenAIVision } from "./vision.js";
 
-loadDotenv();
+const loadedEnvFiles = loadDotenv();
 const env = loadEnv();
+console.log(
+  formatStartupSummary({
+    port: env.port,
+    corsOrigin: env.corsOrigin,
+    visionKeySet: env.openaiApiKey !== null,
+    model: env.openaiModel,
+    loadedEnvFiles,
+  }),
+);
 const prisma = new PrismaClient();
 const vision = env.openaiApiKey
   ? createOpenAIVision({

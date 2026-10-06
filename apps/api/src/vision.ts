@@ -7,10 +7,31 @@ export interface BillVision {
   parse(image: BillImage): Promise<unknown>;
 }
 
+const LOG_DETAIL_LIMIT = 300;
+const ERROR_BODY_LIMIT = 4_096;
+
 export class VisionProviderError extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly code: "vision_unavailable" | "vision_unreadable";
+  readonly providerStatus: number | null;
+  readonly providerType: string | null;
+  readonly providerCode: string | null;
+
+  constructor(details: {
+    code: "vision_unavailable" | "vision_unreadable";
+    providerStatus: number | null;
+    providerType: string | null;
+    providerCode: string | null;
+    detail: string;
+  }) {
+    const detail = truncate(details.detail, LOG_DETAIL_LIMIT);
+    super(
+      `vision provider failed status=${details.providerStatus ?? "none"} type=${details.providerType ?? "none"} code=${details.providerCode ?? "none"} message=${JSON.stringify(detail)}`,
+    );
     this.name = "VisionProviderError";
+    this.code = details.code;
+    this.providerStatus = details.providerStatus;
+    this.providerType = details.providerType;
+    this.providerCode = details.providerCode;
   }
 }
 
@@ -103,26 +124,157 @@ export function createOpenAIVision(options: {
           signal: AbortSignal.timeout(45_000),
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "request failed";
-        throw new VisionProviderError(`Vision provider request failed: ${message}`);
+        throw providerTransportError(error, [options.apiKey, imageBase64(image)]);
       }
 
       if (!response.ok) {
-        throw new VisionProviderError(`Vision provider returned HTTP ${response.status}`);
+        throw await providerHttpError(response, [options.apiKey, imageBase64(image)]);
       }
 
-      const body = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string | null } }>;
-      };
+      let body: { choices?: Array<{ message?: { content?: string | null } }> };
+      try {
+        body = (await response.json()) as { choices?: Array<{ message?: { content?: string | null } }> };
+      } catch {
+        throw new VisionProviderError({
+          code: "vision_unreadable",
+          providerStatus: response.status,
+          providerType: null,
+          providerCode: null,
+          detail: "response was not JSON",
+        });
+      }
       const content = body.choices?.[0]?.message?.content;
       if (!content) {
-        throw new VisionProviderError("Vision provider returned an empty response");
+        throw new VisionProviderError({
+          code: "vision_unreadable",
+          providerStatus: response.status,
+          providerType: null,
+          providerCode: null,
+          detail: "empty response",
+        });
       }
       try {
         return JSON.parse(content) as unknown;
       } catch {
-        throw new VisionProviderError("Vision provider returned invalid JSON");
+        throw new VisionProviderError({
+          code: "vision_unreadable",
+          providerStatus: response.status,
+          providerType: null,
+          providerCode: null,
+          detail: "invalid JSON",
+        });
       }
     },
   };
+}
+
+function imageBase64(image: BillImage): string {
+  return Buffer.from(image.bytes).toString("base64");
+}
+
+function providerTransportError(error: unknown, secrets: string[]): VisionProviderError {
+  const name = error instanceof Error ? error.name : "Error";
+  const timedOut = name === "TimeoutError" || name === "AbortError";
+  const causeCode = readCauseCode(error);
+  const raw = error instanceof Error ? error.message : "request failed";
+  const detail = timedOut
+    ? `timeout: ${name} ${redact(raw, secrets)}`
+    : `network: ${name}${causeCode ? ` ${causeCode}` : ""} ${redact(raw, secrets)}`;
+  return new VisionProviderError({
+    code: "vision_unavailable",
+    providerStatus: null,
+    providerType: null,
+    providerCode: null,
+    detail,
+  });
+}
+
+async function providerHttpError(response: Response, secrets: string[]): Promise<VisionProviderError> {
+  const raw = await readBoundedText(response, ERROR_BODY_LIMIT);
+  const parsed = parseProviderError(raw);
+  const detail = redact(parsed.message ?? (raw.trim().length > 0 ? raw : `HTTP ${response.status}`), secrets);
+  return new VisionProviderError({
+    code: clientCodeForProviderFailure(response.status, parsed.type, parsed.code),
+    providerStatus: response.status,
+    providerType: parsed.type,
+    providerCode: parsed.code,
+    detail,
+  });
+}
+
+function clientCodeForProviderFailure(
+  status: number,
+  providerType: string | null,
+  providerCode: string | null,
+): "vision_unavailable" | "vision_unreadable" {
+  if (status === 401 || status === 402 || status === 403 || status === 408 || status === 429 || status >= 500) {
+    return "vision_unavailable";
+  }
+  const token = `${providerType ?? ""} ${providerCode ?? ""}`.toLowerCase();
+  if (/quota|rate_limit|billing|invalid_api_key|authentication|permission|access/.test(token)) {
+    return "vision_unavailable";
+  }
+  return "vision_unreadable";
+}
+
+function parseProviderError(raw: string): { type: string | null; code: string | null; message: string | null } {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    const record = asRecord(parsed);
+    const error = asRecord(record?.error) ?? record;
+    if (!error) return { type: null, code: null, message: null };
+    return {
+      type: safeToken(error.type),
+      code: safeToken(error.code),
+      message: typeof error.message === "string" ? error.message : null,
+    };
+  } catch {
+    return { type: null, code: null, message: null };
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) return value as Record<string, unknown>;
+  return null;
+}
+
+function safeToken(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 80 || !/^[A-Za-z0-9_.-]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+async function readBoundedText(response: Response, limit: number): Promise<string> {
+  try {
+    const text = await response.text();
+    return text.length > limit ? text.slice(0, limit) : text;
+  } catch {
+    return "";
+  }
+}
+
+function readCauseCode(error: unknown): string | null {
+  if (!(error instanceof Error) || !error.cause || typeof error.cause !== "object" || !("code" in error.cause)) {
+    return null;
+  }
+  const code = error.cause.code;
+  return typeof code === "string" && /^[A-Za-z0-9_]+$/.test(code) ? code : null;
+}
+
+function redact(text: string, secrets: string[]): string {
+  let out = text;
+  for (const secret of secrets) {
+    if (secret.length >= 8) out = out.split(secret).join("[redacted]");
+  }
+  out = out.replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
+  out = out.replace(/\bsk-[A-Za-z0-9*_-]{4,}\b/g, "[redacted]");
+  out = out.replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, "[image]");
+  return out;
+}
+
+function truncate(text: string, limit: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= limit) return flat;
+  return `${flat.slice(0, limit)}…`;
 }

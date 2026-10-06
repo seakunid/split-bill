@@ -8,9 +8,14 @@ import { fileURLToPath } from "node:url";
  * Paths come from this file so `tsx`, the compiled API, and Prisma all
  * find the same files whatever the working directory is.
  */
-export function loadEnvFiles(files: { higher: string; lower: string }): void {
-  dotenv.config({ path: files.higher, quiet: true, override: false });
-  dotenv.config({ path: files.lower, quiet: true, override: false });
+/** Returns the files that existed, highest precedence first. */
+export function loadEnvFiles(files: { higher: string; lower: string }): string[] {
+  const loaded: string[] = [];
+  for (const path of [files.higher, files.lower]) {
+    const result = dotenv.config({ path, quiet: true, override: false });
+    if (!result.error) loaded.push(path);
+  }
+  return loaded;
 }
 
 export function envFilePaths(fromModuleUrl: string = import.meta.url): {
@@ -24,7 +29,7 @@ export function envFilePaths(fromModuleUrl: string = import.meta.url): {
   };
 }
 
-export function loadDotenv(): void {
+export function loadDotenv(): string[] {
   const paths = envFilePaths();
-  loadEnvFiles({ higher: paths.apiEnv, lower: paths.rootEnv });
+  return loadEnvFiles({ higher: paths.apiEnv, lower: paths.rootEnv });
 }

@@ -37,7 +37,7 @@ export function billRoutes(deps: {
     }
 
     if (!deps.vision) {
-      return c.json({ error: "Bill parsing is not configured" } satisfies ApiError, 503);
+      return c.json({ error: "Bill parsing is not configured", code: "vision_unavailable" } satisfies ApiError, 503);
     }
     let image: { mimeType: string; bytes: Uint8Array };
     try {
@@ -55,10 +55,13 @@ export function billRoutes(deps: {
       return c.json(normalizeParsedBill(raw));
     } catch (error) {
       if (error instanceof DraftNormalizationError) {
-        return c.json({ error: error.message } satisfies ApiError, 422);
+        const detail = error.issues.length > 0 ? `${error.message}: ${error.issues.join("; ")}` : error.message;
+        console.warn(`parse draft rejected: ${oneLine(detail, 500)}`);
+        return c.json({ error: error.message, code: "vision_unreadable" } satisfies ApiError, 422);
       }
       if (error instanceof VisionProviderError) {
-        return c.json({ error: "Could not parse the bill image" } satisfies ApiError, 502);
+        console.error(error.message);
+        return c.json({ error: "Could not parse the bill image", code: error.code } satisfies ApiError, 502);
       }
       throw error;
     }
@@ -107,6 +110,12 @@ function readBillId(id: string): string {
   const parsed = idSchema.safeParse(id);
   if (!parsed.success) throw new HttpError("Invalid bill id", 400);
   return parsed.data;
+}
+
+function oneLine(text: string, limit: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= limit) return flat;
+  return `${flat.slice(0, limit)}…`;
 }
 
 function zodIssue(issue: ZodError["issues"][number]) {
