@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Bill" ADD COLUMN "rounding" BIGINT NOT NULL DEFAULT 0;

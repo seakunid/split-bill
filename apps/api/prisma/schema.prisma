@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Saved split bill. Money columns are whole rupiah (minor units).
+model Bill {
+  id            String   @id
+  currency      String   @default("IDR")
+  subtotal      BigInt
+  tax           BigInt
+  serviceCharge BigInt
+  discount      BigInt
+  /// Pembulatan in whole rupiah. Negative when the adjustment reduces the total.
+  rounding      BigInt   @default(0)
+  total         BigInt
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  items         Item[]
+  payers        Payer[]
+}
+
+model Item {
+  id          String       @id
+  billId      String
+  bill        Bill         @relation(fields: [billId], references: [id], onDelete: Cascade)
+  /// Request order, so equal-split leftovers stay with the same payers.
+  position    Int
+  name        String
+  quantity    Float
+  unitPrice   BigInt
+  lineTotal   BigInt
+  assignments Assignment[]
+
+  @@index([billId])
+}
+
+model Payer {
+  id          String       @id
+  billId      String
+  bill        Bill         @relation(fields: [billId], references: [id], onDelete: Cascade)
+  position    Int
+  name        String
+  assignments Assignment[]
+
+  @@index([billId])
+}
+
+model Assignment {
+  itemId  String
+  payerId String
+  item    Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  payer   Payer  @relation(fields: [payerId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, payerId])
+  @@index([payerId])
+}

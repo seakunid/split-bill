@@ -1,0 +1,29 @@
+{
+  "name": "@split-bill/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @split-bill/shared build && tsx watch src/index.ts",
+    "build": "pnpm --filter @split-bill/shared build && tsc -p tsconfig.build.json",
+    "typecheck": "pnpm --filter @split-bill/shared build && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm --filter @split-bill/shared build && vitest run",
+    "postinstall": "DATABASE_URL=\"${DATABASE_URL:-postgresql://splitbill:splitbill@localhost:5432/splitbill}\" prisma generate"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "@prisma/client": "^6.16.2",
+    "@split-bill/shared": "workspace:*",
+    "dotenv": "^17.2.3",
+    "hono": "^4.9.8",
+    "nanoid": "^5.1.6",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.6",
+    "prisma": "^6.16.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
