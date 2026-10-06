@@ -8,6 +8,10 @@
     "build": "pnpm --filter @split-bill/shared build && tsc -p tsconfig.build.json",
     "typecheck": "pnpm --filter @split-bill/shared build && tsc -p tsconfig.json --noEmit",
     "test": "pnpm --filter @split-bill/shared build && vitest run",
+    "db:deploy": "prisma migrate deploy",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
     "postinstall": "DATABASE_URL=\"${DATABASE_URL:-postgresql://splitbill:splitbill@localhost:5432/splitbill}\" prisma generate"
   },
   "dependencies": {
