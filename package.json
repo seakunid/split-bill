@@ -7,11 +7,15 @@
     "node": ">=22"
   },
   "scripts": {
+    "postinstall": "pnpm --filter @split-bill/shared build",
     "build": "pnpm -r --sort --if-present run build",
     "typecheck": "pnpm -r --sort --if-present run typecheck",
     "test": "pnpm -r --sort --if-present run test",
     "dev": "pnpm --filter @split-bill/api dev",
     "db:migrate": "pnpm --filter @split-bill/api exec prisma migrate dev",
     "db:deploy": "pnpm --filter @split-bill/api exec prisma migrate deploy"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "prisma", "esbuild"]
   }
 }
